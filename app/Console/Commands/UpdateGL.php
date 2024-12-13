@@ -48,7 +48,7 @@ class UpdateGL extends Command
                 . '(select upper(inti) FROM tajprod.bkcom  WHERE trim(ncp) = trim(b.ncp)  AND trim(age) = TRIM(b.age) AND trim(dev) = TRIM(b.dev) AND ROWNUM = 1) account_name, '
                 . '(select nvl(sin, 0) FROM tajprod.bkcom  WHERE trim(ncp) = trim(b.ncp)  AND trim(age) = TRIM(b.age) AND trim(dev) = TRIM(b.dev) AND ROWNUM = 1) bal, '
                 . "(SELECT  nvl(sde, 0) FROM tajprod.bksld  WHERE trim(ncp) = trim(b.ncp) AND dco = trunc(sysdate) - $days_before AND trim(age) = TRIM(b.age) AND trim(dev) = TRIM(b.dev) AND ROWNUM = 1) opening_bal "
-                . " FROM tajprod.bksld b WHERE b.dco = trunc(sysdate) - $days and trim(b.dev) = $currency_code ";
+                . " FROM tajprod.bksld b WHERE b.dco = trunc(sysdate) - $days and trim(b.dev) = $currency_code and b.age = '00001' ";
 
             $stid = oci_parse($conn, $sql);
             oci_execute($stid);

@@ -117,13 +117,13 @@ class UpdateFTR extends Command
                 TRIM(a.cli1) IS NOT NULL AND
                 a.dev != '566'
                 AND a.dev IS NOT NULL
-                AND a.mht1 >= 10000
-                AND a.dsai >= TRUNC(SYSDATE) - 2 AND a.nat not in ('AGEVER', 'AGERET')
+                AND a.m0n1 >= 10000
+                AND a.dsai >= TRUNC(SYSDATE) - 2 AND a.nat not like 'AGE%'
         ";
         
         
         if ($queryType === 'outflow') {
-            $sqlQuery = "  SELECT
+            $sqlQuery = " SELECT
                 (SELECT TRIM(lib) FROM tajprod.bkage WHERE age = b.age) AS BRANCH_NAME,
                 TRIM(b.age) AS BRANCH_CODE,
                 ' ' AS CUSTOMER_TYPE,
@@ -155,7 +155,11 @@ class UpdateFTR extends Command
                     THEN TRIM((SELECT TRIM(nid) FROM tajprod.bkcli WHERE TRIM(cli) = TRIM(a.cli1)))
                     ELSE TRIM((SELECT TRIM(nrc) FROM tajprod.bkcli WHERE TRIM(cli) = TRIM(a.cli1)))
                 END AS IDENTIFICATION_NO,
-                (SELECT did FROM tajprod.bkcli WHERE TRIM(cli) = TRIM(a.cli1)) AS DATE_OF_ISSUE,
+                    CASE 
+                    WHEN (SELECT TRIM(nidf) FROM tajprod.bkcli WHERE TRIM(cli) = TRIM(a.cli1)) IS NULL 
+                    THEN TRIM((SELECT TRIM(did) FROM tajprod.bkcli WHERE TRIM(cli) = TRIM(a.cli1)))
+                    ELSE TRIM((SELECT TRIM(drc) FROM tajprod.bkcli WHERE TRIM(cli) = TRIM(a.cli1)))
+                END AS DATE_OF_ISSUE,
                 (SELECT TRIM(VID) FROM tajprod.bkcli WHERE TRIM(cli) = TRIM(a.cli1)) AS EXPIRY_DATE,
                 (SELECT oid FROM tajprod.bkcli WHERE TRIM(cli) = TRIM(a.cli1)) AS ISSUE_AUTHORITY,
                 '' AS CUSTOMER_ADDRESS_TYPE,
@@ -175,7 +179,7 @@ class UpdateFTR extends Command
                 'OUTFLOW' AS TRANSACTION_TYPE,
                 DECODE(NAT,'RETESP',NOMP,'RCHBSP',lib3,'VERESP',lib2,lib1) AS TRANSACTION_DETAILS,
                 a.dev AS CURRENCY_TYPE,
-                a.mht1 AS AMOUNT,
+                (case when mon2 = 0 then mon1 when mon2> 0 then mon2 end) AMOUNT,
                 CASE 
                     WHEN (TRIM(a.nat) IN ('VERDEV', 'RETDEV'))
                     THEN 'CASH'
@@ -197,8 +201,8 @@ class UpdateFTR extends Command
                 TRIM(a.cli1) IS NOT NULL AND
                 a.dev != '566'
                 AND a.dev IS NOT NULL
-                AND a.mht1 >= 10000
-                AND a.dsai >= TRUNC(SYSDATE) - 1 AND a.nat not in ('AGEVER', 'AGERET')"; 
+                AND (case when mon2 = 0 then mon1 when mon2 > 0 then mon2 end) >= 10000
+                AND a.dsai >= TRUNC(SYSDATE) - 1 AND a.nat not like 'AGE%'"; 
         } elseif ($queryType === 'inflow') {
             $sqlQuery = "SELECT
                 (SELECT TRIM(lib) FROM tajprod.bkage WHERE age = b.age) AS BRANCH_NAME,
@@ -232,7 +236,11 @@ class UpdateFTR extends Command
                     THEN TRIM((SELECT TRIM(nid) FROM tajprod.bkcli WHERE TRIM(cli) = TRIM(a.cli2)))
                     ELSE TRIM((SELECT TRIM(nrc) FROM tajprod.bkcli WHERE TRIM(cli) = TRIM(a.cli2)))
                 END AS IDENTIFICATION_NO,
-                (SELECT did FROM tajprod.bkcli WHERE TRIM(cli) = TRIM(a.cli2)) AS DATE_OF_ISSUE,
+                  CASE 
+                    WHEN (SELECT TRIM(nidf) FROM tajprod.bkcli WHERE TRIM(cli) = TRIM(a.cli2)) IS NULL 
+                    THEN TRIM((SELECT TRIM(did) FROM tajprod.bkcli WHERE TRIM(cli) = TRIM(a.cli2)))
+                    ELSE TRIM((SELECT TRIM(drc) FROM tajprod.bkcli WHERE TRIM(cli) = TRIM(a.cli2)))
+                END AS DATE_OF_ISSUE,
                 (SELECT TRIM(VID) FROM tajprod.bkcli WHERE TRIM(cli) = TRIM(a.cli2)) AS EXPIRY_DATE,
                 (SELECT oid FROM tajprod.bkcli WHERE TRIM(cli) = TRIM(a.cli2)) AS ISSUE_AUTHORITY,
                 '' AS CUSTOMER_ADDRESS_TYPE,
@@ -252,7 +260,7 @@ class UpdateFTR extends Command
                 'INFLOW' AS TRANSACTION_TYPE,
                 DECODE(NAT,'RETESP',NOMP,'RCHBSP',lib3,'VERESP',lib2,lib1) AS TRANSACTION_DETAILS,
                 a.dev AS CURRENCY_TYPE,
-                a.mht2 AS AMOUNT,
+                (case when mon2 = 0 then mon1 when mon2> 0 then mon2 end) AMOUNT,
                 CASE 
                     WHEN (TRIM(a.nat) IN ('VERDEV', 'RETDEV'))
                     THEN 'CASH'
@@ -274,8 +282,8 @@ class UpdateFTR extends Command
                 TRIM(a.cli2) IS NOT NULL AND
                 a.dev != '566'
                 AND a.dev IS NOT NULL
-                AND a.mht2 >= 10000
-                AND a.dsai >= TRUNC(SYSDATE) - 1 AND a.nat not in ('AGEVER', 'AGERET')"; 
+                AND (case when mon2 = 0 then mon1 when mon2> 0 then mon2 end) >= 10000
+                AND a.dsai >= TRUNC(SYSDATE) - 1 AND a.nat not like 'AGE%' "; 
         } else {
             Log::error("Invalid query type: $queryType");
             oci_close($oracleConn);

@@ -111,7 +111,7 @@ try{
     $pType = $requestData['trantype']; // Assuming this contains the value of P106_REPORT_TYPE
 
     // Construct and execute the PL/SQL block
-    $plsqlBlock = " 
+  /*  $plsqlBlock = " 
         DECLARE
             l_user_id NUMBER := $l_user_id;
             p_type VARCHAR2(100) := '$pType';
@@ -138,7 +138,26 @@ try{
                     NULL;
             END CASE;
         END;
+    "; */
+    
+        // Construct and execute the PL/SQL block
+    $plsqlBlock = " 
+        DECLARE
+            l_user_id NUMBER := $l_user_id;
+            p_type VARCHAR2(100) := '$pType';
+        BEGIN
+        
+                    ctr_mgt.inward('$start_date', '$end_date', $l_user_id, 0);
+                    ctr_mgt.outward('$start_date', '$end_date', $l_user_id, 0);
+                    ctr_mgt.account_account('$start_date', '$end_date', $l_user_id, 0);
+                    ctr_mgt.fx_inward('$start_date', '$end_date', $l_user_id, 0);
+                    ctr_mgt.local_withdrawal('$start_date', '$end_date', $l_user_id, 0);
+                    ctr_mgt.local_deposit('$start_date', '$end_date', $l_user_id, 0);
+                    ctr_mgt.foreign_deposit('$start_date', '$end_date', $l_user_id, 0);
+                    ctr_mgt.foreign_withdrawal('$start_date', '$end_date', $l_user_id, 0);
+        END;
     ";
+
 
    // echo $plsqlBlock;
 

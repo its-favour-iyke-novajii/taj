@@ -61,6 +61,8 @@ $router->post('/update-postgres', "PostgresQueryDbController@update");
 //Download from Postgres
 $router->post('/download-pg', "DownloadPgController@download");
 
+$router->post('/export-excel', "DownloadPgController@export_stream_file");
+
 
 //Insert Postgres
 $router->post('/insert-aml-report', "InsertPgController@amlInsert");
@@ -74,8 +76,13 @@ $router->post('/stagedata', "StagingController@migrateData");
 $router->post('/bg-download', 'DownloadController@initiateDownload');
 
 
+$router->get('/export/{queryType}', function ($queryType) {
 
-
+    // Dispatch the export job to the queue
+    dispatch(new \App\Jobs\ExportTransactions($queryType));
+    
+    return response()->json(['message' => 'Export started in the background']);
+});
 
 
 
@@ -86,3 +93,12 @@ $router->group(['prefix' => 'db'], function () use ($router) {
         return 'Hello GL';
     });
 });
+
+
+
+$router->post('/inward', "AMLReportController@generateTransactionReport");
+
+$router->get('/download_xml', 'AMLReportController@downloadXml');
+
+
+

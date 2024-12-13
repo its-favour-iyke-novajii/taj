@@ -99,5 +99,74 @@ class DownloadPgController extends BaseController
         }
     }
     
+    
+    private function export_stream_file($sql)
+{
+    // Set proper headers for CSV download
+    header('Content-Type: text/csv');
+    header('Content-Disposition: attachment; filename="data.csv"');
+
+    // Open output stream
+    $output = fopen('php://output', 'w');
+
+    // PostgreSQL connection details
+    $host = '127.0.0.1';
+    $port = '5432';
+    $database = 'tajbank';
+    $username = 'postgres';
+    $password = 'Tajbank123_';
+
+    // Establish connection to PostgreSQL database
+    $conn = pg_connect("host=$host port=$port dbname=$database user=$username password=$password");
+
+    if (!$conn) {
+        die('Connection failed');
+    }
+
+    // Start the cursor for streaming data
+    $cursor_name = 'my_cursor';
+    $result = pg_query($conn, "DECLARE $cursor_name CURSOR FOR $sql");
+
+    if (!$result) {
+        die('Failed to declare cursor: ' . pg_last_error($conn));
+    }
+
+    // Output column headers as the first row
+    $columnNames = pg_fetch_assoc(pg_query($conn, "FETCH 1 FROM $cursor_name"));
+    if ($columnNames) {
+        fputcsv($output, array_keys($columnNames)); // Write headers to CSV
+    }
+
+    // Process data in chunks and write to CSV
+    while ($row = pg_fetch_assoc(pg_query($conn, "FETCH 1000 FROM $cursor_name"))) {
+        // Ensure data is properly formatted before writing to CSV
+        $this->sanitizeRow($row); // Optional: Customize this method to clean/escape data if needed
+        fputcsv($output, $row); // Write each row to CSV
+    }
+
+    // Close the cursor and the database connection
+    pg_query($conn, "CLOSE $cursor_name");
+    pg_close($conn);
+
+    // Close the output stream
+    fclose($output);
+
+    exit;
+}
+
+/**
+ * Optional: Sanitize each row before writing to CSV.
+ * You can add custom logic here to clean or escape data.
+ */
+private function sanitizeRow(&$row)
+{
+    // Example: Escape newlines or commas within data if necessary
+    array_walk($row, function (&$value) {
+        // Remove newlines and commas, or add custom escaping logic
+        $value = str_replace(["\n", "\r", ","], ["", "", " "], $value);
+    });
+}
+
+    
    
 }

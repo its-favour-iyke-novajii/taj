@@ -73,12 +73,12 @@ class UpdateCTRTest extends Command
             t_dest_currency_code, t_amount_local, t_source_foreign_amount, t_dest_foreign_amount, 
             t_source_institution_code, t_source_institution_name, t_dest_institution_code, 
             t_dest_institution_name, t_source_country, t_dest_exchange_rate, t_source_exchange_rate, 
-            tran_type, transaction_description, t_date, t_value_date
+            tran_type, transaction_description, t_date, t_value_date, t_firstname, t_lastname, t_dob, t_phone, t_address, t_city, t_state, t_idnumber, t_balance
         ) VALUES (
             $1, $2, $3, $4, $5, $6, $7, $8, 
             $9, $10, $11, $12, $13, $14, $15, $16, 
             $17, $18, $19, $20, $21, $22, $23, $24, 
-            $25, $26, $27, $28
+            $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37
         );";
 
         $insertStmt = pg_prepare($postgresConn, "insert_query", $insertQuery);
@@ -117,7 +117,8 @@ class UpdateCTRTest extends Command
 
     private function getOutflowSQL()
     {
-        return "SELECT
+        return "             
+            SELECT
             (SELECT lib FROM tajprod.bkage WHERE age = (SELECT age FROM tajprod.bkcom WHERE trim(ncp) = trim(a.ncp1) AND ROWNUM = 1)) branch_name,
             
             a.dev1 t_source_currency_code,
@@ -167,11 +168,8 @@ class UpdateCTRTest extends Command
             a.tcai3 t_source_exchange_rate,
             
             CASE 
-               WHEN trim(a.NAT) = 'RETDEV' THEN 'FOREIGN_WITHDRAWAL'
-               WHEN trim(a.NAT) = 'RPCMON' THEN 'FOREIGN_WITHDRAWAL'
-               WHEN trim(a.NAT) = 'RECMON' THEN 'FOREIGN_WITHDRAWAL'
-               WHEN trim(a.NAT) = 'RETMON' THEN 'FOREIGN_WITHDRAWAL'
-               WHEN trim(a.NAT) = 'RETESP' THEN 'LOCAL_WITHDRAWAL'
+               WHEN trim(a.dev) != '566' AND TRIM(a.cli2) IS NULL  THEN 'FOREIGN_WITHDRAWAL'
+               WHEN trim(a.dev) = '566' AND TRIM(a.cli2) IS NULL THEN 'LOCAL_WITHDRAWAL'
                WHEN TRIM(a.cli1) IS NOT NULL AND TRIM(a.cli2) IS NOT NULL THEN 'ACCOUNT_TO_ACCOUNT'
             ELSE a.NAT  -- Default to the value of NAT if no match found
                END AS Tran_Type,
@@ -180,16 +178,38 @@ class UpdateCTRTest extends Command
             
             a.dsai t_date,
             
-            a.dsai t_value_date
-        FROM tajprod.bkeve a
-        WHERE ((trim(a.dev) = '566' AND a.mnat >= 5000000) 
-            OR (trim(a.dev) != '566' AND a.mht >= 10000)) 
-            AND a.dsai >= trunc(sysdate) AND a.nat in ('RETDEV', 'RPCMON', 'RECMON', 'RETMON', 'RETESP' )";
+            a.dsai t_value_date,
+            
+            TRIM(SUBSTR(a.nom1, 1, INSTR(a.nom1, ' ') - 1)) AS t_person_first_name,
+            
+            TRIM(SUBSTR(a.nom1, INSTR(a.nom1, ' ') + 1)) AS t_person_last_name,
+            CASE 
+                    WHEN (SELECT TRIM(nidf) FROM tajprod.bkcli WHERE TRIM(cli) = TRIM(b.cli)) IS NOT NULL 
+                    THEN (SELECT drc FROM tajprod.bkcli WHERE TRIM(cli) = TRIM(a.cli1)) 
+                    ELSE (SELECT dna FROM tajprod.bkcli WHERE TRIM(cli) = TRIM(a.cli1))
+                END AS t_dob,
+            (SELECT TRIM(num) FROM tajprod.bktelcli g WHERE TRIM(b.cli) = TRIM(g.cli) AND ROWNUM = 1) AS t_phone,
+            (SELECT TRIM(adr1) || ',' || TRIM(adr2) || ',' || TRIM(adr3) FROM tajprod.bkadcli f WHERE TRIM(b.cli) = TRIM(f.cli) AND ROWNUM = 1) AS t_address,
+            (SELECT TRIM(ville) FROM tajprod.bkadcli f WHERE TRIM(b.cli) = TRIM(f.cli) AND ROWNUM = 1) AS t_city,
+            (SELECT TRIM(dep) FROM tajprod.bkadcli f WHERE TRIM(b.cli) = TRIM(f.cli) AND ROWNUM = 1) AS t_state,
+            CASE 
+                    WHEN (SELECT TRIM(nidf) FROM tajprod.bkcli WHERE TRIM(cli) = TRIM(a.cli1)) IS NULL 
+                    THEN TRIM((SELECT TRIM(nid) FROM tajprod.bkcli WHERE TRIM(cli) = TRIM(a.cli1)))
+                    ELSE TRIM((SELECT TRIM(nrc) FROM tajprod.bkcli WHERE TRIM(cli) = TRIM(a.cli1)))
+            END AS t_idnumber,
+            
+            (select sde from tajprod.bkcom where ncp = a.ncp1 and rownum = 1) t_balance 
+            
+            
+        FROM tajprod.bkeve a, tajprod.bkcli b
+        WHERE ((trim(a.dev) = '566' AND (case when mon2 = 0 then mon1 when mon2 > 0 then mon2 end) >= 5000000) 
+            OR (trim(a.dev) != '566' AND (case when mon2 = 0 then mon1 when mon2 > 0 then mon2 end) >= 10000)) 
+         and trim(cli1) is not null and trim(a.cli1) = trim(b.cli) and trim(ncp2) != '2040120001' and trim(a.nat) not like 'AGE%' and trunc(dsai) >= trunc(sysdate) ";
     }
 
     private function getInflowSQL()
     {
-        return "SELECT
+        return " SELECT
             (SELECT lib FROM tajprod.bkage WHERE age = (SELECT age FROM tajprod.bkcom WHERE trim(ncp) = trim(a.ncp2) AND ROWNUM = 1)) branch_name,
             
             a.dev1 t_source_currency_code,
@@ -238,23 +258,42 @@ class UpdateCTRTest extends Command
             
             a.tcai3 t_source_exchange_rate,
             
-            
             CASE 
-                WHEN trim(a.NAT) = 'VERESP' THEN 'LOCAL_DEPOSIT'
-                WHEN trim(a.NAT) = 'VERDEV' THEN 'FOREIGN_DEPOSIT'
-                WHEN trim(a.NAT) = 'VIRMAG' AND a.TYP = '110' AND a.DEVF != '566' THEN 'FX_INWARD'
-                WHEN TRIM(a.cli1) IS NOT NULL AND TRIM(a.cli2) IS NOT NULL THEN 'ACCOUNT_TO_ACCOUNT'
-            ELSE a.NAT 
+               WHEN trim(a.dev) != '566'  AND TRIM(a.cli1) IS NULL THEN 'FOREIGN_DEPOSIT'
+               WHEN trim(a.dev) = '566'  AND TRIM(a.cli1) IS NULL THEN 'LOCAL_DEPOSIT'
+               WHEN TRIM(a.cli2) IS NOT NULL AND TRIM(a.cli1) IS NOT NULL THEN 'ACCOUNT_TO_ACCOUNT'
+            ELSE a.NAT  -- Default to the value of NAT if no match found
                END AS Tran_Type,
             
             Decode(a.NAT, 'RETESP', a.NOMP, 'RCHBSP', a.lib3, 'VERESP', a.lib2, a.lib1) transaction_description,
             
             a.dsai t_date,
             
-            a.dsai t_value_date
-        FROM tajprod.bkeve a
-            WHERE ((trim(a.dev) = '566' AND a.mnat >= 5000000) 
-            OR (trim(a.dev) != '566' AND a.mht >= 10000))  
-            AND a.dsai >= trunc(sysdate) AND a.nat in ('VERESP', 'VERDEV', 'VIRMAG')";
+            a.dsai t_value_date,
+            
+            TRIM(SUBSTR(a.nom2, 1, INSTR(a.nom2, ' ') - 1)) AS t_person_first_name,
+            
+            TRIM(SUBSTR(a.nom2, INSTR(a.nom2, ' ') + 1)) AS t_person_last_name,
+            CASE 
+                    WHEN (SELECT TRIM(nidf) FROM tajprod.bkcli WHERE TRIM(cli) = TRIM(b.cli)) IS NOT NULL 
+                    THEN (SELECT drc FROM tajprod.bkcli WHERE TRIM(cli) = TRIM(a.cli2)) 
+                    ELSE (SELECT dna FROM tajprod.bkcli WHERE TRIM(cli) = TRIM(a.cli2))
+                END AS t_dob,
+            (SELECT TRIM(num) FROM tajprod.bktelcli g WHERE TRIM(b.cli) = TRIM(g.cli) AND ROWNUM = 1) AS t_phone,
+            (SELECT TRIM(adr1) || ',' || TRIM(adr2) || ',' || TRIM(adr3) FROM tajprod.bkadcli f WHERE TRIM(b.cli) = TRIM(f.cli) AND ROWNUM = 1) AS t_address,
+            (SELECT TRIM(ville) FROM tajprod.bkadcli f WHERE TRIM(b.cli) = TRIM(f.cli) AND ROWNUM = 1) AS t_city,
+            (SELECT TRIM(dep) FROM tajprod.bkadcli f WHERE TRIM(b.cli) = TRIM(f.cli) AND ROWNUM = 1) AS t_state,
+            CASE 
+                    WHEN (SELECT TRIM(nidf) FROM tajprod.bkcli WHERE TRIM(cli) = TRIM(a.cli2)) IS NULL 
+                    THEN TRIM((SELECT TRIM(nid) FROM tajprod.bkcli WHERE TRIM(cli) = TRIM(a.cli2)))
+                    ELSE TRIM((SELECT TRIM(nrc) FROM tajprod.bkcli WHERE TRIM(cli) = TRIM(a.cli2)))
+            END AS t_idnumber,
+            
+            (select sde from tajprod.bkcom where ncp = a.ncp2 and rownum = 1) t_balance 
+            
+               FROM tajprod.bkeve a, tajprod.bkcli b
+        WHERE ((trim(a.dev) = '566' AND (case when mon2 = 0 then mon1 when mon2 > 0 then mon2 end) >= 5000000) 
+            OR (trim(a.dev) != '566' AND (case when mon2 = 0 then mon1 when mon2 > 0 then mon2 end) >= 10000)) 
+         and trim(cli2) is not null and trim(a.cli2) = trim(b.cli) and trim(ncp1) != '103630001' and trim(a.nat) not like 'AGE%' and trunc(dsai) >= trunc(sysdate)";
     }
 }
