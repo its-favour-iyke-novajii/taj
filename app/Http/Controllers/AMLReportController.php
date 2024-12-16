@@ -93,7 +93,7 @@ class AMLReportController extends BaseController
     }
 
     // Function to generate XML for each transaction
-   private function generate_transaction_xml($row)
+   private function generate_inflow_transaction_xml($row)
 {
     // Create the root <transaction> element
     $xml = new SimpleXMLElement('<transaction/>');
@@ -127,21 +127,48 @@ class AMLReportController extends BaseController
     $from = $xml->addChild('t_from');
     $from->addChild('from_funds_code', htmlspecialchars($row['t_source_funds_code'] ?: 'L'));
 
+    if($row['tran_type'] == 'INWARD_BUFFER'){
     // Add source account information
     $source_account = $from->addChild('from_account');
     $source_account->addChild('institution_name', htmlspecialchars(trim($row['t_source_institution_name']) ?: '     '));
     $source_account->addChild('institution_code', htmlspecialchars($row['t_source_institution_code'] ?: '     '));
     $source_account->addChild('non_bank_institution', 'false');
     $source_account->addChild('account', htmlspecialchars($row['t_source_account_number'] ?: '     '));
-    $source_account->addChild('currency_code', htmlspecialchars($row['t_source_currency_code'] ?: 'NGN'));
+    
+    $source_account->addChild('currency_code', htmlspecialchars($this->getCurrencyName($row['t_source_currency_code'] ?: '566')));
+
+    
     $source_account->addChild('account_name', htmlspecialchars(trim($row['t_source_account_name']) ?: '     '));
 
     // Add source country
     $from->addChild('from_country', htmlspecialchars(trim($row['t_source_country']) ?: 'NG'));
+    
+    }
+    
+    if (in_array($row['tran_type'], ['LOCAL_DEPOSIT', 'FOREIGN_DEPOSIT', 'FX_INWARD', 'INWARD_BUFFER'])) {
+    $from_person = $from->addChild('from_person');
+    $from_person->addChild('gender', htmlspecialchars(trim($row['t_gender']) ?: 'M'));
+    $from_person->addChild('first_name', htmlspecialchars(trim($row['t_firstname']) ?: '     '));
+    $from_person->addChild('last_name', htmlspecialchars(trim($row['t_lastname']) ?: '     '));
+
+    // Add source country for all relevant transaction types
+    $from->addChild('from_country', htmlspecialchars(trim($row['t_source_country']) ?: 'NG'));
+    }
+
+
 
     // To my client section
     $to_client = $xml->addChild('t_to_my_client');
     $to_client->addChild('to_funds_code', htmlspecialchars($row['t_dest_funds_code'] ?: 'L'));
+    
+    if (in_array($row['tran_type'], ['FOREIGN_DEPOSIT', 'FX_INWARD'])) {
+    // Add to_foreign_currency for foreign currency transactions
+    $to_foreign_currency = $to_client->addChild('to_foreign_currency');
+    $to_foreign_currency->addChild('foreign_currency_code',  htmlspecialchars($this->getCurrencyName($row['t_source_currency_code'] ?: '840')));
+    $to_foreign_currency->addChild('foreign_amount', htmlspecialchars(trim($row['t_dest_foreign_amount']) ?: 0));
+    $to_foreign_currency->addChild('foreign_exchange_rate', htmlspecialchars(trim($row['t_dest_exchange_rate']) ?: 1));
+    }
+    
 
     // Add destination account information
     $to_account = $to_client->addChild('to_account');
@@ -150,8 +177,14 @@ class AMLReportController extends BaseController
     $to_account->addChild('non_bank_institution', 'true');
     $to_account->addChild('branch', htmlspecialchars($row['t_dest_institution_code'] ?: '     '));
     $to_account->addChild('account', htmlspecialchars($row['t_dest_account_number'] ?: '     '));
-    $to_account->addChild('currency_code', htmlspecialchars($row['t_dest_currency_code'] ?: 'NGN'));
+    
+    $to_account->addChild('currency_code', htmlspecialchars($this->getCurrencyName($row['t_dest_currency_code'] ?: '566')));
+    
     $to_account->addChild('account_name', htmlspecialchars(trim($row['t_dest_account_name']) ?: '     '));
+    
+    $to_account->addChild('client_number', htmlspecialchars($row['t_client_number'] ?: '22222222222'));
+    
+    $to_account->addChild('personal_account_type', 'E');
 
     // Add signatory information
     $signatory = $to_account->addChild('signatory');
@@ -203,6 +236,8 @@ class AMLReportController extends BaseController
     $person->addChild('tax_number', htmlspecialchars($row['t_taxno']));
     $person->addChild('tax_reg_number', htmlspecialchars($row['t_taxregdate']));
     $person->addChild('source_of_wealth', 'Business');
+    
+    $signatory->addChild('role', 'D');
 
     // Account opened date
     $to_account->addChild('opened', date('Y-m-d\TH:i:s', strtotime($row['t_acctopndate'] ?: 'now')));
@@ -216,9 +251,198 @@ class AMLReportController extends BaseController
 
     // Add destination country
     $to_client->addChild('to_country', htmlspecialchars(trim($row['t_dest_country']) ?: 'NG'));
+    
+    $dom = new \DOMDocument('1.0', 'UTF-8');
+    $dom->loadXML($xml->asXML());
 
-    return $xml->asXML();
+    // Format the XML for readability (without adding a new XML declaration)
+    $dom->formatOutput = true;
+
+    // Get the XML string without the declaration
+    $xmlString = $dom->saveXML($dom->documentElement);  // This avoids including the declaration
+
+    // Return the formatted XML string
+    return $xmlString;
 }
+
+
+
+
+
+   private function generate_outflow_transaction_xml($row)
+{
+     // Create the root <transaction> element
+    $xml = new SimpleXMLElement('<transaction/>');
+
+    // Add the transaction fields, escaping special characters
+    $xml->addChild('transactionnumber', htmlspecialchars($row['t_trans_number'] ?: '     '));
+    $xml->addChild('internal_ref_number', htmlspecialchars($row['t_trans_number'] ?: '     '));
+    $xml->addChild('transaction_location', htmlspecialchars(trim($row['t_location']) ?: '     '));
+    $xml->addChild('transaction_description', htmlspecialchars(trim($row['transaction_description']) ?: '     '));
+
+    // Handle date formatting for "date_transaction"
+    $xml->addChild('date_transaction', date('Y-m-d\TH:i:s', strtotime($row['t_date'] ?: 'now')));
+
+    // Add teller and authorized information
+    $xml->addChild('teller', htmlspecialchars(trim($row['t_teller']) ?: 'SYSTEM'));
+    $xml->addChild('authorized', htmlspecialchars(trim($row['t_authorized']) ?: 'SYSTEM'));
+
+    // Add late deposit
+    $xml->addChild('late_deposit', htmlspecialchars($row['t_late_deposit'] ?: 0));
+
+    // Handle date formatting for "value_date"
+    $xml->addChild('value_date', date('Y-m-d\TH:i:s', strtotime($row['t_value_date'] ?: 'now')));
+
+    // Add transaction mode code
+    $xml->addChild('transmode_code', htmlspecialchars($row['t_transmode_code'] ?: 'A'));
+
+    // Add amount in local currency
+    $xml->addChild('amount_local', htmlspecialchars($row['t_amount_local'] ?: 0));
+
+    // From section
+    $from = $xml->addChild('t_from');
+    $from->addChild('from_funds_code', htmlspecialchars($row['t_source_funds_code'] ?: 'L'));
+
+    if($row['tran_type'] == 'INWARD_BUFFER'){
+    // Add source account information
+    $source_account = $from->addChild('from_account');
+    $source_account->addChild('institution_name', htmlspecialchars(trim($row['t_source_institution_name']) ?: '     '));
+    $source_account->addChild('institution_code', htmlspecialchars($row['t_source_institution_code'] ?: '     '));
+    $source_account->addChild('non_bank_institution', 'false');
+    $source_account->addChild('account', htmlspecialchars($row['t_source_account_number'] ?: '     '));
+    
+    $source_account->addChild('currency_code', htmlspecialchars($this->getCurrencyName($row['t_source_currency_code'] ?: '566')));
+
+    
+    $source_account->addChild('account_name', htmlspecialchars(trim($row['t_source_account_name']) ?: '     '));
+
+    // Add source country
+    $from->addChild('from_country', htmlspecialchars(trim($row['t_source_country']) ?: 'NG'));
+    
+    }
+    
+    if (in_array($row['tran_type'], ['LOCAL_DEPOSIT', 'FOREIGN_DEPOSIT', 'FX_INWARD', 'INWARD_BUFFER'])) {
+    $from_person = $from->addChild('from_person');
+    $from_person->addChild('gender', htmlspecialchars(trim($row['t_gender']) ?: 'M'));
+    $from_person->addChild('first_name', htmlspecialchars(trim($row['t_firstname']) ?: '     '));
+    $from_person->addChild('last_name', htmlspecialchars(trim($row['t_lastname']) ?: '     '));
+
+    // Add source country for all relevant transaction types
+    $from->addChild('from_country', htmlspecialchars(trim($row['t_source_country']) ?: 'NG'));
+    }
+
+
+
+    // To my client section
+    $to_client = $xml->addChild('t_to_my_client');
+    $to_client->addChild('to_funds_code', htmlspecialchars($row['t_dest_funds_code'] ?: 'L'));
+    
+    if (in_array($row['tran_type'], ['FOREIGN_DEPOSIT', 'FX_INWARD'])) {
+    // Add to_foreign_currency for foreign currency transactions
+    $to_foreign_currency = $to_client->addChild('to_foreign_currency');
+    $to_foreign_currency->addChild('foreign_currency_code',  htmlspecialchars($this->getCurrencyName($row['t_source_currency_code'] ?: '840')));
+    $to_foreign_currency->addChild('foreign_amount', htmlspecialchars(trim($row['t_dest_foreign_amount']) ?: 0));
+    $to_foreign_currency->addChild('foreign_exchange_rate', htmlspecialchars(trim($row['t_dest_exchange_rate']) ?: 1));
+    }
+    
+
+    // Add destination account information
+    $to_account = $to_client->addChild('to_account');
+    $to_account->addChild('institution_name', htmlspecialchars(trim($row['t_dest_institution_name']) ?: '     '));
+    $to_account->addChild('institution_code', htmlspecialchars(trim($row['t_dest_institution_code']) ?: '     '));
+    $to_account->addChild('non_bank_institution', 'true');
+    $to_account->addChild('branch', htmlspecialchars($row['t_dest_institution_code'] ?: '     '));
+    $to_account->addChild('account', htmlspecialchars($row['t_dest_account_number'] ?: '     '));
+    
+    $to_account->addChild('currency_code', htmlspecialchars($this->getCurrencyName($row['t_dest_currency_code'] ?: '566')));
+    
+    $to_account->addChild('account_name', htmlspecialchars(trim($row['t_dest_account_name']) ?: '     '));
+    
+    $to_account->addChild('client_number', htmlspecialchars($row['t_client_number'] ?: '22222222222'));
+    
+    $to_account->addChild('personal_account_type', 'E');
+
+    // Add signatory information
+    $signatory = $to_account->addChild('signatory');
+    $signatory->addChild('is_primary', '1');
+
+    $person = $signatory->addChild('t_person');
+    $person->addChild('gender', htmlspecialchars(trim($row['t_gender']) ?: 'M'));
+    $person->addChild('title', htmlspecialchars(trim($row['t_title']) ?: '     '));
+    $person->addChild('first_name', htmlspecialchars(trim($row['t_firstname']) ?: '     '));
+    $person->addChild('last_name', htmlspecialchars(trim($row['t_lastname']) ?: '     '));
+
+    // Handle date formatting for "birthdate"
+    $person->addChild('birthdate', date('Y-m-d\TH:i:s', strtotime($row['t_dob'] ?: 'now')));
+
+    $person->addChild('nationality1', 'NG');
+    $person->addChild('residence', 'NG');
+
+    // Phones
+    $phones = $person->addChild('phones');
+    $phone = $phones->addChild('phone');
+    $phone->addChild('tph_contact_type', 'P');
+    $phone->addChild('tph_communication_type', 'M');
+    $phone->addChild('tph_country_prefix', '+234');
+    $phone->addChild('tph_number', htmlspecialchars($row['t_phone'] ?: '     '));
+
+    // Addresses
+    $addresses = $person->addChild('addresses');
+    $address = $addresses->addChild('address');
+    $address->addChild('address_type', 'P');
+    $address->addChild('address', htmlspecialchars(trim($row['t_address']) ?: '     '));
+    $address->addChild('city', htmlspecialchars(trim($row['t_city']) ?: '     '));
+    $address->addChild('country_code', 'NG');
+    $address->addChild('state', htmlspecialchars(trim($row['t_state']) ?: '     '));
+
+    // Occupation
+    $person->addChild('occupation', 'Business');
+
+    // Identification information
+    $identification = $person->addChild('identification');
+    $identification->addChild('type', 'B');
+    $identification->addChild('number', htmlspecialchars($row['t_idnumber'] ?: '     '));
+
+    // Handle date formatting for "issue_date"
+    $identification->addChild('issue_date', date('Y-m-d\TH:i:s', strtotime($row['t_idregdate'] ?: 'now')));
+
+    $identification->addChild('issue_country', 'NG');
+
+    // Tax information
+    $person->addChild('tax_number', htmlspecialchars($row['t_taxno']));
+    $person->addChild('tax_reg_number', htmlspecialchars($row['t_taxregdate']));
+    $person->addChild('source_of_wealth', 'Business');
+    
+    $signatory->addChild('role', 'D');
+
+    // Account opened date
+    $to_account->addChild('opened', date('Y-m-d\TH:i:s', strtotime($row['t_acctopndate'] ?: 'now')));
+
+    // Balance and status
+    $to_account->addChild('balance', htmlspecialchars($row['t_balance'] ?: 0));
+    $to_account->addChild('status_code', 'A');
+    
+    // Beneficiary
+    $to_account->addChild('beneficiary', substr(htmlspecialchars(trim($row['t_dest_account_number'])), 0, 50) ?: '     ');
+
+    // Add destination country
+    $to_client->addChild('to_country', htmlspecialchars(trim($row['t_dest_country']) ?: 'NG'));
+    
+    $dom = new \DOMDocument('1.0', 'UTF-8');
+    $dom->loadXML($xml->asXML());
+
+    // Format the XML for readability (without adding a new XML declaration)
+    $dom->formatOutput = true;
+
+    // Get the XML string without the declaration
+    $xmlString = $dom->saveXML($dom->documentElement);  // This avoids including the declaration
+
+    // Return the formatted XML string
+    return $xmlString;
+}
+
+
+
 
 
     // Function to handle inward data processing
@@ -249,7 +473,7 @@ public function generateTransactionReport(Request $request)
 
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         // Generate XML for each transaction
-        $xml = $this->generate_transaction_xml($row, $tran_type);
+        $xml = $this->generate_inflow_transaction_xml($row, $tran_type);
         $xml_container .= $xml;
         $count++;
 
@@ -306,5 +530,19 @@ public function downloadXml(Request $request)
     return response($xml_data, 200)
         ->header('Content-Type', 'application/xml')
         ->header('Content-Disposition', 'attachment; filename="' . $filename . '.xml"');
+}
+
+public function getCurrencyName($currency_code) {
+    $currency_map = [
+        '840' => 'USD',
+        '978' => 'EUR',
+        '826' => 'GBP',
+        '392' => 'JPY',
+        '156' => 'CNY',
+        '566' => 'NGN'
+    ];
+
+    // Return the currency name, or 'NGN' if not found
+    return isset($currency_map[$currency_code]) ? $currency_map[$currency_code] : 'NGN';
 }
 }

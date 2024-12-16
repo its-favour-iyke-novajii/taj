@@ -73,12 +73,12 @@ class UpdateCTRTest extends Command
             t_dest_currency_code, t_amount_local, t_source_foreign_amount, t_dest_foreign_amount, 
             t_source_institution_code, t_source_institution_name, t_dest_institution_code, 
             t_dest_institution_name, t_source_country, t_dest_exchange_rate, t_source_exchange_rate, 
-            tran_type, transaction_description, t_date, t_value_date, t_firstname, t_lastname, t_dob, t_phone, t_address, t_city, t_state, t_idnumber, t_balance
+            tran_type, transaction_description, t_date, t_value_date, t_firstname, t_lastname, t_dob, t_phone, t_address, t_city, t_state, t_idnumber, t_balance, t_client_number
         ) VALUES (
             $1, $2, $3, $4, $5, $6, $7, $8, 
             $9, $10, $11, $12, $13, $14, $15, $16, 
             $17, $18, $19, $20, $21, $22, $23, $24, 
-            $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37
+            $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38
         );";
 
         $insertStmt = pg_prepare($postgresConn, "insert_query", $insertQuery);
@@ -198,13 +198,14 @@ class UpdateCTRTest extends Command
                     ELSE TRIM((SELECT TRIM(nrc) FROM tajprod.bkcli WHERE TRIM(cli) = TRIM(a.cli1)))
             END AS t_idnumber,
             
-            (select sde from tajprod.bkcom where ncp = a.ncp1 and rownum = 1) t_balance 
+            (select sde from tajprod.bkcom where ncp = a.ncp1 and rownum = 1) t_balance ,
+            (SELECT TRIM(valmt) FROM tajprod.bkicli c WHERE cli = b.cli AND TRIM(valmt) IS NOT NULL AND ROWNUM = 1) t_client_number 
             
             
         FROM tajprod.bkeve a, tajprod.bkcli b
         WHERE ((trim(a.dev) = '566' AND (case when mon2 = 0 then mon1 when mon2 > 0 then mon2 end) >= 5000000) 
             OR (trim(a.dev) != '566' AND (case when mon2 = 0 then mon1 when mon2 > 0 then mon2 end) >= 10000)) 
-         and trim(cli1) is not null and trim(a.cli1) = trim(b.cli) and trim(ncp2) != '2040120001' and trim(a.nat) not like 'AGE%' and trunc(dsai) >= trunc(sysdate) ";
+         and trim(cli1) is not null and trim(a.cli1) = trim(b.cli) and trim(ncp2) != '2040120001' and trim(a.nat) not like 'AGE%' and trunc(dsai) >= trunc(sysdate)";
     }
 
     private function getInflowSQL()
@@ -289,7 +290,8 @@ class UpdateCTRTest extends Command
                     ELSE TRIM((SELECT TRIM(nrc) FROM tajprod.bkcli WHERE TRIM(cli) = TRIM(a.cli2)))
             END AS t_idnumber,
             
-            (select sde from tajprod.bkcom where ncp = a.ncp2 and rownum = 1) t_balance 
+            (select sde from tajprod.bkcom where ncp = a.ncp2 and rownum = 1) t_balance,
+            (SELECT TRIM(valmt) FROM tajprod.bkicli c WHERE cli = b.cli AND TRIM(valmt) IS NOT NULL AND ROWNUM = 1) t_client_number 
             
                FROM tajprod.bkeve a, tajprod.bkcli b
         WHERE ((trim(a.dev) = '566' AND (case when mon2 = 0 then mon1 when mon2 > 0 then mon2 end) >= 5000000) 
