@@ -205,7 +205,7 @@ class UpdateCTRTest extends Command
         FROM tajprod.bkeve a, tajprod.bkcli b
         WHERE ((trim(a.dev) = '566' AND (case when mon2 = 0 then mon1 when mon2 > 0 then mon2 end) >= 5000000) 
             OR (trim(a.dev) != '566' AND (case when mon2 = 0 then mon1 when mon2 > 0 then mon2 end) >= 10000)) 
-         and trim(cli1) is not null and trim(a.cli1) = trim(b.cli) and trim(ncp2) != '2040120001' and trim(a.nat) not like 'AGE%' and trunc(dsai) >= trunc(sysdate)";
+         and trim(a.cli1) is not null and trim(a.cli1) = trim(b.cli) and trim(a.ncp2) != '2040120001' and trim(a.nat) not like 'AGE%' and trunc(a.dsai) >= trunc(sysdate) ";
     }
 
     private function getInflowSQL()
@@ -261,6 +261,7 @@ class UpdateCTRTest extends Command
             
             CASE 
                WHEN trim(a.dev) != '566'  AND TRIM(a.cli1) IS NULL THEN 'FOREIGN_DEPOSIT'
+               WHEN trim(a.devf) != '566' AND TRIM(a.cli1) IS NULL AND a.nat = 'VIRMAG' THEN 'FX_INWARD'
                WHEN trim(a.dev) = '566'  AND TRIM(a.cli1) IS NULL THEN 'LOCAL_DEPOSIT'
                WHEN TRIM(a.cli2) IS NOT NULL AND TRIM(a.cli1) IS NOT NULL THEN 'ACCOUNT_TO_ACCOUNT'
             ELSE a.NAT  -- Default to the value of NAT if no match found
@@ -296,6 +297,6 @@ class UpdateCTRTest extends Command
                FROM tajprod.bkeve a, tajprod.bkcli b
         WHERE ((trim(a.dev) = '566' AND (case when mon2 = 0 then mon1 when mon2 > 0 then mon2 end) >= 5000000) 
             OR (trim(a.dev) != '566' AND (case when mon2 = 0 then mon1 when mon2 > 0 then mon2 end) >= 10000)) 
-         and trim(cli2) is not null and trim(a.cli2) = trim(b.cli) and trim(ncp1) != '103630001' and trim(a.nat) not like 'AGE%' and trunc(dsai) >= trunc(sysdate)";
+         and trim(a.cli2) is not null and trim(a.cli2) = trim(b.cli) and trim(a.ncp1) != '103630001' and trim(a.nat) not like 'AGE%' and trunc(a.dsai) >= trunc(sysdate)";
     }
 }

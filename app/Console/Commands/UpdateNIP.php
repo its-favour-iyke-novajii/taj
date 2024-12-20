@@ -55,7 +55,9 @@ class UpdateNIP extends Command
         
         //$outward = "SELECT * FROM NIP_OUTWARD_BUFFER WHERE STATUS = 'S'"; 
 
-        $outward = "SELECT * FROM NIP_OUTWARD_BUFFER a where STATUS='S' AND amount::NUMERIC >= $local_limit AND posteddate >= NOW() - INTERVAL '2 hours'";
+        //$outward = "SELECT * FROM NIP_OUTWARD_BUFFER a where STATUS='S' AND amount::NUMERIC >= $local_limit AND posteddate >= NOW() - INTERVAL '2 hours'";
+        
+        $outward = "SELECT * FROM NIP_OUTWARD_BUFFER a where STATUS='S' AND amount::NUMERIC >= $local_limit AND posteddate >= CURRENT_DATE - INTERVAL '1 day'";
 
         $stmt = $this->p_conn->prepare($outward);
         $stmt->execute();
@@ -150,6 +152,8 @@ class UpdateNIP extends Command
                 'T_ACCTOPNDATE' => date('d/m/Y H:i:s', strtotime($reg[0])),
                 'T_BALANCE' => $data['ACCOUNT_BALANCE'],
                 'ROW_REF' => $row['row_id'],
+                'BRANCH_NAME' => $row['BRANCH_CODE'],
+             
             ];
 
 
@@ -264,6 +268,7 @@ class UpdateNIP extends Command
                 'T_ACCTOPNDATE' => date('d/m/Y H:i:s', strtotime($reg1[0])),
                 'T_BALANCE' => $data['ACCOUNT_BALANCE'],
                 'ROW_REF' => $row['sopratranid'],
+                'BRANCH_NAME' => $row['BRANCH_CODE'],
                 
             ];
 
@@ -350,7 +355,8 @@ class UpdateNIP extends Command
     T_TAXREGDATE,
     T_ACCTOPNDATE,
     T_BALANCE,
-    ROW_REF
+    ROW_REF,
+    BRANCH_NAME
 ) values ( 
     :T_ACCOUNT_NUMBER,
     :T_TRANS_NUMBER,
@@ -409,7 +415,8 @@ class UpdateNIP extends Command
     :T_TAXREGDATE,
     to_timestamp(:T_ACCTOPNDATE,'DD/MM/YYYY HH24:MI:SS'),
     :T_BALANCE,
-    :ROW_REF
+    :ROW_REF,
+    :BRANCH_NAME
 )";
 
         // Now you can call the pg_db_execute function with the $p_conn object and binding data
@@ -486,6 +493,7 @@ class UpdateNIP extends Command
             ,f.adr1 || ' ' || f.adr2 || ' ' || f.adr3 ADDRESS
             ,d.valmt BVN
             ,e.num PHONE_NUMBER
+            ,c.age BRANCH_CODE
             FROM tajprod.bkcli b, tajprod.bkcom c, tajprod.bkicli d, tajprod.bktelcli e, tajprod.bkadcli f , tajprod.bknom g
             WHERE (trim(b.cli)=trim(c.cli) and trim(c.dev) = trim('$currency') and trim(c.ncp) = trim('$account_num'))
                 and trim(b.cli)=trim(d.cli) 
